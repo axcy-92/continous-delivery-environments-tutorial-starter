@@ -1,4 +1,3 @@
-# myapp.py
 import os
 from flask import Flask, jsonify, render_template, url_for, abort
 from dotenv import load_dotenv
