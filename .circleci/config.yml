@@ -15,7 +15,7 @@ jobs:
       # documented at https://circleci.com/docs/2.0/circleci-images/
       # - image: circleci/postgres:9.4
 
-    working_directory: ~/migration-env-demo
+    working_directory: ~/continous-delivery-environment
 
     steps:
       - checkout
@@ -34,7 +34,6 @@ jobs:
             . venv/bin/activate
             pip install -r requirements.txt
             npm install
-
       - save_cache:
           paths:
             - ./venv
@@ -45,15 +44,13 @@ jobs:
           name: Preparing environment for testing
           command: |
             . venv/bin/activate
-            node . scripts/migrate.js $SPACE_ID "CI_$CIRCLE_BRANCH" $MANAGEMENT_API_KEY
-
+            scripts/migrate.js $SPACE_ID "CI_$CIRCLE_BRANCH" $MANAGEMENT_API_KEY
       # run tests!
       - run:
           name: run tests
           command: |
             . venv/bin/activate
             pytest --environment-id="CI_$CIRCLE_BRANCH"
-
       - store_artifacts:
           path: test-reports
           destination: test-reports
@@ -79,7 +76,6 @@ jobs:
             name: install dependencies
             command: |
               npm install
-
         - save_cache:
             paths:
               - node_modules
@@ -89,7 +85,6 @@ jobs:
             name: Creating new master environment and setting master alias
             command: |
               scripts/migrate.js $SPACE_ID master $MANAGEMENT_API_KEY
-
         - run:
             name: setup Heroku
             command: bash .circleci/setup-heroku.sh
@@ -102,7 +97,6 @@ jobs:
                 heroku run python manage.py deploy
                 heroku restart
               fi
-
 workflows:
   version: 2
   build-deploy:

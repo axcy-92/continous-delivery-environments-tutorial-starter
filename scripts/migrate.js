@@ -1,3 +1,7 @@
+#!/usr/bin/env node
+
+
+
 (async () => {
     try {
         const {promisify} = require('util');
@@ -14,28 +18,41 @@
         //
         // Configuration variables
         //
-        const [,, SPACE_ID, ENVIRONMENT_ID, CMA_ACCESS_TOKEN] = process.argv;
+        const [,, SPACE_ID, ENVIRONMENT_INPUT, CMA_ACCESS_TOKEN] = process.argv;
         const MIGRATIONS_DIR = path.join('.', 'migrations');
     
         const client = createClient({
-        accessToken: CMA_ACCESS_TOKEN
+            accessToken: CMA_ACCESS_TOKEN
         });
         const space = await client.getSpace(SPACE_ID);
     
+        var ENVIRONMENT_ID = "";
+
         let environment;
         console.log('Running with the following configuration');
         console.log(`SPACE_ID: ${SPACE_ID}`);
         console.log(`ENVIRONMENT_ID: ${ENVIRONMENT_ID}`);
 
+    
+        // ---------------------------------------------------------------------------
+        console.log('Running with the following configuration');
+        if (ENVIRONMENT_INPUT == 'master'){
+            console.log(`Running on master.`);
+            ENVIRONMENT_ID = "master-".concat(getStringDate());
+        }else{
+            console.log('Running on feature branch');
+            ENVIRONMENT_ID = ENVIRONMENT_INPUT;
+        }
+
         // ---------------------------------------------------------------------------
         console.log(`Checking for existing versions of environment: ${ENVIRONMENT_ID}`);
-
+    
         try {
             environment = await space.getEnvironment(ENVIRONMENT_ID);
-        if (ENVIRONMENT_ID != 'master'){
-            await environment.delete();
-            console.log('Environment deleted');
-        }
+            if (ENVIRONMENT_ID != 'master'){
+                await environment.delete();
+                console.log('Environment deleted');
+            }
         } catch(e) {
             console.log('Environment not found');
         }
@@ -70,20 +87,20 @@
         }
 
         // ---------------------------------------------------------------------------
-        console.log('Update API keys to allow access to new environment');
+        console.log('Update API Keys to allow access to new environment');
         const newEnv = {
-        sys: {
-            type: 'Link',
-            linkType: 'Environment',
-            id: ENVIRONMENT_ID
-        }
+            sys: {
+                type: 'Link',
+                linkType: 'Environment',
+                id: ENVIRONMENT_ID
+            }
         }
 
         const {items: keys} = await space.getApiKeys();
         await Promise.all(keys.map(key => {
-        console.log(`Updating - ${key.sys.id}`);
-        key.environments.push(newEnv);
-        return key.update();
+            console.log(`Updating - ${key.sys.id}`);
+            key.environments.push(newEnv);
+            return key.update();
         }));
 
         // ---------------------------------------------------------------------------
@@ -139,9 +156,40 @@
             storedVersionEntry = await storedVersionEntry.publish();
             console.log(`Updated version entry to ${migrationToRun}`);
         }
+    
+        // ---------------------------------------------------------------------------
+        console.log('Checking if we need to update master alias');
+        if (ENVIRONMENT_INPUT == 'master'){
+            console.log(`Running on master.`);
+            console.log(`Updating master alias.`);
+            await space.getEnvironmentAlias('master')
+            .then((alias) => {
+                alias.environment.sys.id = ENVIRONMENT_ID
+                return alias.update()
+            })
+            .then((alias) => console.log(`alias ${alias.sys.id} updated.`))
+            .catch(console.error);
+            console.log(`Master alias updated.`);
+        }else{
+            console.log('Running on feature branch');
+            console.log('No alias changes required');
+        }
+    
+    
         console.log('All done!');
     } catch(e) {
         console.error(e);
         process.exit(1);
     }
-})();
+  })();
+  
+  
+  
+  function getStringDate(){
+    var d = new Date();
+    function pad(n){return n<10 ? '0'+n : n}
+    return d.toISOString().substring(0, 10)
+    + '-'
+    + pad(d.getUTCHours())
+    + pad(d.getUTCMinutes())
+  }
